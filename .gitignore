@@ -1,0 +1,5 @@
+node_modules/
+output/*.json
+output/reports/*.json
+images/questions/*.png
+.DS_Store
