@@ -37,4 +37,7 @@ Com base no layout dos exemplos fornecidos:
 - Existem questões com texto-base longo em página seguinte e enunciado final com comando `Assinale...`.
 - Há questões com figura dentro do bloco da questão.
 
+- O parser agora tenta separar metadados editoriais do enunciado real, preservando o comando da questão em `statement`.
+- O parser também tenta extrair gabaritos explícitos nas páginas finais do PDF e preencher `answer` quando encontrar correspondência por número da questão.
+
 O parser foi implementado para seguir esse padrão antes de gerar os JSONs no formato exigido.
