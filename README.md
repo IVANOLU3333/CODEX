@@ -43,3 +43,10 @@ Com base no layout dos exemplos fornecidos:
 - Imagens detectadas dentro do bloco visual da questão são extraídas para `images/questions/` e vinculadas por `question_media_links.json`.
 
 O parser foi implementado para seguir esse padrão antes de gerar os JSONs no formato exigido.
+
+## Uso do CLI
+
+- `node src/cli.js` procura PDFs dentro de `input/` de forma recursiva.
+- `node src/cli.js caminho/para/prova.pdf` processa um PDF específico.
+- `node src/cli.js pasta-com-pdfs` processa todos os PDFs de uma pasta e subpastas.
+- Se um arquivo falhar, o processo continua com os demais e registra o erro em `output/reports/run-report.json`.

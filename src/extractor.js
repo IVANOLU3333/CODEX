@@ -443,6 +443,9 @@ async function parsePdf(pdfPath, imageOutputDir) {
 }
 
 function buildRunReport(result) {
+  const processedFiles = result.processedFiles || [];
+  const failedFiles = result.failedFiles || [];
+
   return {
     total_questions: result.questions.length,
     questions_with_options: result.questions.filter((q) => Object.keys(q.options).length > 0).length,
@@ -450,6 +453,10 @@ function buildRunReport(result) {
     questions_with_reference: result.questionReferenceLinks.length,
     questions_with_images: new Set(result.questionMediaLinks.map((l) => l.question_id)).size,
     total_images_extracted: result.mediaReferences.length,
+    processed_files: processedFiles.length,
+    failed_files: failedFiles.length,
+    file_failures: failedFiles,
+    files: processedFiles,
     failed_questions: result.questions.filter((q) => !q.statement || Object.keys(q.options).length === 0).map((q) => q.question_number),
   };
 }

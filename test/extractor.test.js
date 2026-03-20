@@ -88,6 +88,21 @@ test('questão sem gabarito permanece com answer null no relatório', () => {
   assert.equal(report.questions_with_options, 1);
 });
 
+test('relatório inclui arquivos processados e falhas', () => {
+  const report = buildRunReport({
+    questions: [],
+    questionReferenceLinks: [],
+    questionMediaLinks: [],
+    mediaReferences: [],
+    processedFiles: [{ file: 'input/prova-ok.pdf', questions: 10 }],
+    failedFiles: [{ file: 'input/prova-ruim.pdf', error: 'arquivo corrompido' }],
+  });
+
+  assert.equal(report.processed_files, 1);
+  assert.equal(report.failed_files, 1);
+  assert.deepEqual(report.file_failures, [{ file: 'input/prova-ruim.pdf', error: 'arquivo corrompido' }]);
+});
+
 test('questão atravessando página é mantida no mesmo bloco', () => {
   const blocks = splitQuestionBlocks([
     {
