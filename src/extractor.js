@@ -6,14 +6,16 @@ const { normalizeWhitespace, normalizeForDedup, ensureDir } = require('./utils')
 const OPTION_REGEX = /^\s*([A-E])\s*(?:[\)\.:\-]|\s)\s*(.*)$/i;
 const QUESTION_REGEX = /^\s*Quest[aã]o\s+(\d+)\b/i;
 const ANSWER_TOKEN_REGEX = /(\d{1,3})\s*[\).:\-]?\s*([A-E])\b/gi;
-const COMMAND_REGEX = /^(assinale|marque|indique|julgue|considerando|com\s+base|no\s+trecho|de\s+acordo|acerca|observe|analise|leia|quanto|sobre|a\s+partir)/i;
-const REFERENCE_HINT_REGEX = /(texto\s+[ivxlcdm\d]+|texto\s+adaptado|o\s+texto\s+seguinte|leia\s+o\s+texto|considere\s+o\s+texto|utilize\s+o\s+texto|servir[aá]\s+de\s+base|charge|tirinha|imagem|gr[aá]fico|tabela|quadrinho)/i;
 const ANSWER_SECTION_REGEX = /(gabarito|respostas?\s+das\s+quest[õo]es?|quest[õo]es\s+comentadas?\s*\/\s*gabarito|alternativa\s+correta)/i;
 const BOARD_REGEX = /\b(FGV|FUNATEC|FEPESE|VUNESP|CESPE|CEBRASPE|FCC|IBFC|IDECAN|AOCP|AVANCASP|UNESC|FGV\s+CONHECIMENTO)\b/i;
-const DISCIPLINE_REGEX = /\b(Portugu[eê]s|Matem[aá]tica|Inform[aá]tica|Direito(?:\s+[A-Za-zÀ-ÿ]+)?|Conhecimentos\s+Gerais|Legisla[cç][aã]o|Hist[oó]ria|Geografia|Atualidades|Racioc[ií]nio\s+L[oó]gico|Ci[eê]ncias|Biologia|F[ií]sica|Qu[ií]mica|Enfermagem|Pedagogia|Psicologia|Medicina|Odontologia|Letras\s*-\s*[A-Za-zÀ-ÿ]+|Engenharia(?:\s+[A-Za-zÀ-ÿ]+)?)\b/i;
+const DISCIPLINE_REGEX = /\b(Portugu[eê]s|Matem[aá]tica|Inform[aá]tica|Direito(?:\s+[A-Za-zÀ-ÿ]+)?|Conhecimentos\s+Gerais|Legisla[cç][aã]o|Hist[oó]ria|Geografia|Atualidades|Racioc[ií]nio\s+L[oó]gico|Ci[eê]ncias|Biologia|F[ií]sica|Qu[ií]mica|Enfermagem|Pedagogia|Psicologia|Medicina|Odontologia|Desenho\s+T[eé]cnico|Letras\s*-\s*[A-Za-zÀ-ÿ]+|Engenharia(?:\s+[A-Za-zÀ-ÿ]+)?)\b/i;
 const POSITION_REGEX = /(Analista[^\n]*|Professor[^\n]*|Enfermeiro[^\n]*|T[eé]cnico[^\n]*|Auxiliar[^\n]*|Fiscal[^\n]*|Agente[^\n]*|Escritur[aá]rio[^\n]*|Odont[oó]logo[^\n]*|M[eé]dico[^\n]*|Cuidador[^\n]*|Eletricista[^\n]*|Motorista[^\n]*|Assistente[^\n]*)/i;
 const INSTITUTION_REGEX = /(Prefeitura[^\n]*|Assembleia[^\n]*|Tribunal[^\n]*|Instituto[^\n]*|C[aâ]mara[^\n]*|Secretaria[^\n]*|Universidade[^\n]*|Servi[cç]o\s+Aut[oô]nomo[^\n]*)/i;
+const METADATA_HINT_REGEX = /(quest[õo]es\s+oficiais|n[ií]vel\s+superior|executivo\s*\(|educacional\s*\(|legislativo|sa[uú]de|medicina|psicologia|letras\s*-|administrativa\/geral)/i;
+const BODY_MARKER_REGEX = /^(TEXTO\s+[IVXLCDM\d]+|Texto\s+Adaptado|ATEN[CÇ][AÃ]O:|Leia\s+o\s+texto|Observe\s+o\s+texto)/i;
+const PROMPT_HINT_REGEX = /(?:assinale|marque|indique|julgue|considerando|com\s+base|de\s+acordo|acerca|analise|nesse\s+caso|pode-se|pode\s+afirmar|a\s+alternativa|est[aá]\s+correta|est[aá]\s+incorreta|o\s+problema|quanto\s+ao\s+texto|sobre\s+a\s+linguagem|na\s+situa[cç][aã]o|corretamente|incorretamente)/i;
 const TRAILING_ID_REGEX = /\s+\d{7,}\s*$/;
+const FOOTER_ID_REGEX = /^\d{8,}$/;
 
 function uuid() {
   return crypto.randomUUID();
@@ -28,7 +30,7 @@ function cleanContentLine(text) {
 
 function isNoiseLine(text) {
   if (!text) return true;
-  if (/^\d{7,}$/.test(text)) return true;
+  if (FOOTER_ID_REGEX.test(text)) return true;
   if (/essa\s+quest[aã]o\s+possui\s+coment[aá]rio/i.test(text)) return true;
   if (/^p[aá]gina\s+\d+/i.test(text)) return true;
   return false;
@@ -76,11 +78,23 @@ function splitQuestionBlocks(linesByPage) {
 
 function isMetadataLine(text) {
   if (!text) return false;
-  if (/^(quest[õo]es\s+oficiais|n[ií]vel\s+superior|executivo\s*\(|educacional\s*\(|legislativo|letras\s*-|medicina|psicologia|sa[uú]de)\b/i.test(text)) return true;
   if (BOARD_REGEX.test(text) || INSTITUTION_REGEX.test(text) || POSITION_REGEX.test(text) || DISCIPLINE_REGEX.test(text)) return true;
+  if (METADATA_HINT_REGEX.test(text)) return true;
   if (/^(19|20)\d{2}(\s+(19|20)\d{2})*$/.test(text)) return true;
-  if (/^(?:[A-ZÁÀÂÃÉÈÊÍÌÎÓÒÔÕÚÙÛÇ][A-Za-zÀ-ÿ/()\-]+\s*){1,6}$/.test(text) && text.length < 80 && !/[.!?]/.test(text)) return true;
+  if (/^(?:[A-ZÁÀÂÃÉÈÊÍÌÎÓÒÔÕÚÙÛÇ][A-Za-zÀ-ÿ/()\-]+\s*){1,8}$/.test(text) && text.length < 90 && !/[.!?]/.test(text)) return true;
   return false;
+}
+
+function isPromptLine(text) {
+  if (!text) return false;
+  if (PROMPT_HINT_REGEX.test(text)) return true;
+  if (/[:?]$/.test(text)) return true;
+  if (/^(Nesse\s+caso|Com\s+base|De\s+acordo|Quanto\s+ao|Sobre\s+o|Acerca\s+de)/i.test(text)) return true;
+  return false;
+}
+
+function isBodyMarkerLine(text) {
+  return BODY_MARKER_REGEX.test(text || '');
 }
 
 function parseOptions(blockLines) {
@@ -106,7 +120,7 @@ function parseOptions(blockLines) {
   return { options, firstOptionIndex };
 }
 
-function splitPreOptionSections(preOptionLines) {
+function splitMetadataAndBody(preOptionLines) {
   const filtered = preOptionLines
     .map((line) => ({ ...line, text: cleanContentLine(line.text) }))
     .filter((line) => line.text && !QUESTION_REGEX.test(line.text) && !isNoiseLine(line.text));
@@ -118,43 +132,45 @@ function splitPreOptionSections(preOptionLines) {
     cursor += 1;
   }
 
-  const contentLines = filtered.slice(cursor).map((line) => line.text);
-  if (contentLines.length === 0) {
-    return { metadataLines, referenceLines: [], statementLines: [] };
-  }
-
-  let statementStart = contentLines.findIndex((line) => COMMAND_REGEX.test(line));
-  if (statementStart === -1 && REFERENCE_HINT_REGEX.test(contentLines.join('\n'))) {
-    statementStart = contentLines.findIndex((line, idx) => idx > 0 && COMMAND_REGEX.test(line));
-  }
-
-  if (statementStart === -1) {
-    const fallbackIdx = Math.max(contentLines.length - 2, 0);
-    statementStart = fallbackIdx;
-  }
-
-  const beforeStatement = contentLines.slice(0, statementStart);
-  const statementLines = contentLines.slice(statementStart);
-
-  const referenceLines = beforeStatement.filter((line) => !isMetadataLine(line));
-  const extraMetadata = beforeStatement.filter((line) => isMetadataLine(line));
-
   return {
-    metadataLines: metadataLines.concat(extraMetadata),
-    referenceLines,
-    statementLines,
+    metadataLines,
+    bodyLines: filtered.slice(cursor).map((line) => line.text),
   };
 }
 
-function parseOptionsAndStatement(blockLines) {
+function extractPromptFromBody(bodyLines) {
+  if (bodyLines.length === 0) return { statement: '', referenceLines: [] };
+
+  let promptStart = -1;
+  for (let i = bodyLines.length - 1; i >= 0; i -= 1) {
+    if (isPromptLine(bodyLines[i])) {
+      promptStart = i;
+    }
+  }
+
+  if (promptStart === -1) {
+    const lastNonMarker = bodyLines.map((line, idx) => ({ line, idx })).filter(({ line }) => !isBodyMarkerLine(line));
+    promptStart = lastNonMarker.length > 0 ? lastNonMarker[lastNonMarker.length - 1].idx : 0;
+  }
+
+  const statementLines = bodyLines.slice(promptStart).filter((line) => !isBodyMarkerLine(line) || bodyLines.length === 1);
+  const statement = normalizeWhitespace(statementLines.join('\n'));
+  const referenceLines = bodyLines;
+
+  return { statement, referenceLines };
+}
+
+function parseQuestionContent(blockLines) {
   const { options, firstOptionIndex } = parseOptions(blockLines);
   const preOptionLines = firstOptionIndex === -1 ? blockLines : blockLines.slice(0, firstOptionIndex);
-  const { metadataLines, referenceLines, statementLines } = splitPreOptionSections(preOptionLines);
+  const { metadataLines, bodyLines } = splitMetadataAndBody(preOptionLines);
+  const { statement, referenceLines } = extractPromptFromBody(bodyLines);
 
   return {
     metadataLines,
+    bodyLines,
     referenceLines,
-    statement: normalizeWhitespace(statementLines.join('\n')),
+    statement,
     options,
   };
 }
@@ -164,24 +180,49 @@ function splitReferenceFromParts(referenceLines) {
   return referenceText || null;
 }
 
-function collectMetadataCandidates(lines) {
-  return normalizeWhitespace(lines.join(' '));
+function trimMetadataValue(value) {
+  return normalizeWhitespace(value)
+    .replace(BOARD_REGEX, '')
+    .replace(/\bQuest[õo]es\s+oficiais\b/gi, '')
+    .replace(/\b(N[ií]vel\s+Superior\s+em\s+Qualquer\s+[AÁ]rea|Executivo\s*\(Administrativa\/Geral\)|Legislativo|Educacional\s*\(Professores\)|Sa[uú]de\s*\([^)]*\))\b/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
 }
 
 function extractMetadataFromLines(metadataLines, sourceFile, page) {
-  const header = collectMetadataCandidates(metadataLines);
-  const yearMatch = header.match(/\b(19|20)\d{2}\b/);
-  const boardMatch = header.match(BOARD_REGEX);
-  const institutionMatch = header.match(INSTITUTION_REGEX);
-  const positionMatch = header.match(POSITION_REGEX);
-  const disciplineMatch = header.match(DISCIPLINE_REGEX);
+  const year = metadataLines.find((line) => /\b(19|20)\d{2}\b/.test(line));
+  const boardLine = metadataLines.find((line) => BOARD_REGEX.test(line));
+  const disciplineLine = metadataLines.find((line) => DISCIPLINE_REGEX.test(line) && line.length < 60);
+
+  let institution = metadataLines.find((line) => INSTITUTION_REGEX.test(line)) || null;
+  let position = metadataLines.find((line) => POSITION_REGEX.test(line)) || null;
+
+  if (institution && position && institution === position) {
+    position = null;
+  }
+
+  if (!institution) {
+    const institutionCarrier = metadataLines.find((line) => INSTITUTION_REGEX.test(line));
+    if (institutionCarrier) {
+      const match = institutionCarrier.match(INSTITUTION_REGEX);
+      institution = match ? match[1] : null;
+    }
+  }
+
+  if (!position) {
+    const positionCarrier = metadataLines.find((line) => POSITION_REGEX.test(line));
+    if (positionCarrier) {
+      const match = positionCarrier.match(POSITION_REGEX);
+      position = match ? match[1] : null;
+    }
+  }
 
   return {
-    exam_board: boardMatch ? normalizeWhitespace(boardMatch[1].replace(/\s+CONHECIMENTO/i, '')) : null,
-    institution: institutionMatch ? normalizeWhitespace(institutionMatch[1]) : null,
-    position: positionMatch ? normalizeWhitespace(positionMatch[1]) : null,
-    year: yearMatch ? Number(yearMatch[0]) : null,
-    discipline: disciplineMatch ? normalizeWhitespace(disciplineMatch[1]) : null,
+    exam_board: boardLine ? boardLine.match(BOARD_REGEX)[1].replace(/\s+CONHECIMENTO/i, '') : null,
+    institution: institution ? trimMetadataValue(institution) : null,
+    position: position ? trimMetadataValue(position) : null,
+    year: year ? Number(year.match(/\b(19|20)\d{2}\b/)[0]) : null,
+    discipline: disciplineLine ? disciplineLine.match(DISCIPLINE_REGEX)[1] : null,
     source_file: sourceFile,
     page,
   };
@@ -189,7 +230,7 @@ function extractMetadataFromLines(metadataLines, sourceFile, page) {
 
 function extractAnswerKey(linesByPage) {
   const answerMap = new Map();
-  const candidatePages = linesByPage.slice(Math.max(linesByPage.length - 6, 0));
+  const candidatePages = linesByPage.slice(Math.max(linesByPage.length - 8, 0));
 
   for (const page of candidatePages) {
     const pageText = page.lines.map((line) => line.text).join('\n');
@@ -201,13 +242,102 @@ function extractAnswerKey(linesByPage) {
     while ((match = ANSWER_TOKEN_REGEX.exec(normalized)) !== null) {
       const qNum = Number(match[1]);
       const answer = match[2].toUpperCase();
-      if (qNum > 0 && qNum <= 500) {
-        answerMap.set(qNum, answer);
-      }
+      if (qNum > 0 && qNum <= 500) answerMap.set(qNum, answer);
     }
   }
 
   return answerMap;
+}
+
+function getQuestionPageRanges(block) {
+  const pageRanges = new Map();
+  for (const ln of block.lines) {
+    if (!pageRanges.has(ln.page)) {
+      pageRanges.set(ln.page, { minY: ln.y, maxY: ln.y });
+      continue;
+    }
+    const range = pageRanges.get(ln.page);
+    range.minY = Math.min(range.minY, ln.y);
+    range.maxY = Math.max(range.maxY, ln.y);
+  }
+  return pageRanges;
+}
+
+function multiplyTransform(m1, m2) {
+  return [
+    m1[0] * m2[0] + m1[2] * m2[1],
+    m1[1] * m2[0] + m1[3] * m2[1],
+    m1[0] * m2[2] + m1[2] * m2[3],
+    m1[1] * m2[2] + m1[3] * m2[3],
+    m1[0] * m2[4] + m1[2] * m2[5] + m1[4],
+    m1[1] * m2[4] + m1[3] * m2[5] + m1[5],
+  ];
+}
+
+async function getImageDataByName(page, name) {
+  return new Promise((resolve) => {
+    page.objs.get(name, (imgData) => resolve(imgData));
+  });
+}
+
+async function extractImagesFromPage(page, pdfjs) {
+  const opList = await page.getOperatorList();
+  const { OPS } = pdfjs;
+  const images = [];
+  let transform = [1, 0, 0, 1, 0, 0];
+  const stack = [];
+
+  for (let i = 0; i < opList.fnArray.length; i += 1) {
+    const fn = opList.fnArray[i];
+    const args = opList.argsArray[i];
+
+    if (fn === OPS.save) {
+      stack.push([...transform]);
+      continue;
+    }
+    if (fn === OPS.restore) {
+      transform = stack.pop() || [1, 0, 0, 1, 0, 0];
+      continue;
+    }
+    if (fn === OPS.transform) {
+      transform = multiplyTransform(transform, args);
+      continue;
+    }
+    if (fn === OPS.paintInlineImageXObject) {
+      images.push({ imgData: args[0], x: transform[4], y: transform[5], width: Math.abs(transform[0]), height: Math.abs(transform[3]) });
+      continue;
+    }
+    if (fn === OPS.paintImageXObject || fn === OPS.paintJpegXObject) {
+      // eslint-disable-next-line no-await-in-loop
+      const imgData = await getImageDataByName(page, args[0]);
+      if (imgData) {
+        images.push({ imgData, x: transform[4], y: transform[5], width: Math.abs(transform[0]), height: Math.abs(transform[3]) });
+      }
+    }
+  }
+
+  return images;
+}
+
+function saveImageAsPng(imgData, outputPath) {
+  const { PNG } = require('pngjs');
+  if (!imgData || !imgData.width || !imgData.height || !imgData.data) return false;
+  const png = new PNG({ width: imgData.width, height: imgData.height });
+  if (imgData.kind === 1) {
+    for (let i = 0, j = 0; i < imgData.data.length; i += 1, j += 4) {
+      const v = imgData.data[i];
+      png.data[j] = v; png.data[j + 1] = v; png.data[j + 2] = v; png.data[j + 3] = 255;
+    }
+  } else if (imgData.kind === 2) {
+    for (let i = 0, j = 0; i < imgData.data.length; i += 3, j += 4) {
+      png.data[j] = imgData.data[i]; png.data[j + 1] = imgData.data[i + 1]; png.data[j + 2] = imgData.data[i + 2]; png.data[j + 3] = 255;
+    }
+  } else {
+    png.data = Buffer.from(imgData.data);
+  }
+  ensureDir(path.dirname(outputPath));
+  fs.writeFileSync(outputPath, PNG.sync.write(png));
+  return true;
 }
 
 function buildQuestionRecords(blocks, sourceFile, answerMap = new Map()) {
@@ -218,7 +348,7 @@ function buildQuestionRecords(blocks, sourceFile, answerMap = new Map()) {
   const referenceMap = new Map();
 
   for (const block of blocks) {
-    const { metadataLines, referenceLines, statement, options } = parseOptionsAndStatement(block.lines);
+    const { metadataLines, referenceLines, statement, options } = parseQuestionContent(block.lines);
     const referenceText = splitReferenceFromParts(referenceLines);
     const questionId = uuid();
 
@@ -253,27 +383,6 @@ function buildQuestionRecords(blocks, sourceFile, answerMap = new Map()) {
   return { questions, metadata, references, questionReferenceLinks };
 }
 
-function saveImageAsPng(imgData, outputPath) {
-  const { PNG } = require('pngjs');
-  if (!imgData || !imgData.width || !imgData.height || !imgData.data) return false;
-  const png = new PNG({ width: imgData.width, height: imgData.height });
-  if (imgData.kind === 1) {
-    for (let i = 0, j = 0; i < imgData.data.length; i += 1, j += 4) {
-      const v = imgData.data[i];
-      png.data[j] = v; png.data[j + 1] = v; png.data[j + 2] = v; png.data[j + 3] = 255;
-    }
-  } else if (imgData.kind === 2) {
-    for (let i = 0, j = 0; i < imgData.data.length; i += 3, j += 4) {
-      png.data[j] = imgData.data[i]; png.data[j + 1] = imgData.data[i + 1]; png.data[j + 2] = imgData.data[i + 2]; png.data[j + 3] = 255;
-    }
-  } else {
-    png.data = Buffer.from(imgData.data);
-  }
-  ensureDir(path.dirname(outputPath));
-  fs.writeFileSync(outputPath, PNG.sync.write(png));
-  return true;
-}
-
 async function parsePdf(pdfPath, imageOutputDir) {
   const pdfjs = require('pdfjs-dist/legacy/build/pdf.js');
   const data = new Uint8Array(fs.readFileSync(pdfPath));
@@ -281,12 +390,15 @@ async function parsePdf(pdfPath, imageOutputDir) {
   const sourceFile = path.basename(pdfPath);
 
   const linesByPage = [];
+  const imagesByPage = new Map();
   for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
     // eslint-disable-next-line no-await-in-loop
     const page = await pdf.getPage(pageNumber);
     // eslint-disable-next-line no-await-in-loop
     const text = await page.getTextContent();
     linesByPage.push({ pageNumber, lines: groupItemsAsLines(text.items) });
+    // eslint-disable-next-line no-await-in-loop
+    imagesByPage.set(pageNumber, await extractImagesFromPage(page, pdfjs));
   }
 
   const blocks = splitQuestionBlocks(linesByPage);
@@ -295,8 +407,37 @@ async function parsePdf(pdfPath, imageOutputDir) {
 
   const mediaReferences = [];
   const questionMediaLinks = [];
-  void imageOutputDir;
-  void saveImageAsPng;
+  const imageMap = new Map();
+  let imageCounter = 1;
+
+  blocks.forEach((block, index) => {
+    const pageRanges = getQuestionPageRanges(block);
+    for (const [pageNum, range] of pageRanges.entries()) {
+      const pageImages = imagesByPage.get(pageNum) || [];
+      pageImages.forEach((img) => {
+        if (img.width < 40 || img.height < 40) return;
+        if (img.y < range.minY - 80 || img.y > range.maxY + 220) return;
+        const hash = `${img.imgData.width}x${img.imgData.height}-${img.imgData.data?.length || 0}-${img.x}-${img.y}`;
+        let mediaId;
+        let mediaPath;
+        if (imageMap.has(hash)) {
+          ({ mediaId, mediaPath } = imageMap.get(hash));
+        } else {
+          mediaId = uuid();
+          mediaPath = `images/questions/img_${String(imageCounter).padStart(4, '0')}.png`;
+          imageCounter += 1;
+          const absPath = path.join(imageOutputDir, path.basename(mediaPath));
+          if (!saveImageAsPng(img.imgData, absPath)) return;
+          mediaReferences.push({ media_id: mediaId, type: 'image', path: mediaPath, source_file: sourceFile, page: pageNum });
+          imageMap.set(hash, { mediaId, mediaPath });
+        }
+
+        if (!questionMediaLinks.some((link) => link.question_id === records.questions[index].question_id && link.media_id === mediaId)) {
+          questionMediaLinks.push({ question_id: records.questions[index].question_id, media_id: mediaId, relation_type: 'question_image' });
+        }
+      });
+    }
+  });
 
   return { ...records, mediaReferences, questionMediaLinks };
 }
@@ -317,7 +458,7 @@ module.exports = {
   parsePdf,
   buildRunReport,
   splitQuestionBlocks,
-  parseOptionsAndStatement,
+  parseQuestionContent,
   splitReferenceFromParts,
   extractAnswerKey,
   extractMetadataFromLines,

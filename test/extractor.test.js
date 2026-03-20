@@ -2,31 +2,32 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
   splitQuestionBlocks,
-  parseOptionsAndStatement,
+  parseQuestionContent,
   splitReferenceFromParts,
   buildRunReport,
   extractAnswerKey,
   extractMetadataFromLines,
 } = require('../src/extractor');
 
-test('questão com alternativas simples e enunciado limpo', () => {
+test('questão com alternativas simples preserva metadata e prompt final', () => {
   const lines = [
     { text: 'Questão 14', y: 700, page: 1 },
     { text: '2026', y: 690, page: 1 },
     { text: 'FGV', y: 680, page: 1 },
-    { text: 'Assinale a alternativa correta.', y: 670, page: 1 },
-    { text: 'A) Opção A', y: 660, page: 1 },
+    { text: 'Os escritores apontam a dificuldade de expressar o que desejam.', y: 670, page: 1 },
+    { text: 'Nesse caso, o problema da linguagem é:', y: 660, page: 1 },
+    { text: 'A) Opção A', y: 650, page: 1 },
     { text: 'B) Opção B', y: 640, page: 1 },
-    { text: 'C) Opção C', y: 620, page: 1 },
-    { text: 'D) Opção D', y: 600, page: 1 },
-    { text: 'E) Opção E 4002461153', y: 580, page: 1 },
+    { text: 'C) Opção C', y: 630, page: 1 },
+    { text: 'D) Opção D', y: 620, page: 1 },
+    { text: 'E) Opção E 4002461153', y: 610, page: 1 },
   ];
 
-  const parsed = parseOptionsAndStatement(lines);
-  assert.equal(parsed.statement, 'Assinale a alternativa correta.');
-  assert.equal(parsed.options.A, 'Opção A');
+  const parsed = parseQuestionContent(lines);
+  assert.equal(parsed.statement, 'Nesse caso, o problema da linguagem é:');
   assert.equal(parsed.options.E, 'Opção E');
   assert.deepEqual(parsed.metadataLines, ['2026', 'FGV']);
+  assert.match(splitReferenceFromParts(parsed.referenceLines), /Os escritores apontam/);
 });
 
 test('alternativas multilinha são concatenadas corretamente', () => {
@@ -37,26 +38,27 @@ test('alternativas multilinha são concatenadas corretamente', () => {
     { text: 'continuação da alternativa A', y: 640, page: 1 },
     { text: 'B) Outra alternativa', y: 620, page: 1 },
   ];
-  const parsed = parseOptionsAndStatement(lines);
+  const parsed = parseQuestionContent(lines);
   assert.match(parsed.options.A, /continuação da alternativa A/);
 });
 
-test('referência textual é separada do enunciado final', () => {
+test('texto base completo é mantido em references e prompt fica no statement', () => {
   const lines = [
     { text: 'Questão 21', y: 700, page: 1 },
     { text: 'TEXTO I', y: 680, page: 1 },
     { text: 'Era uma vez um texto longo.', y: 660, page: 1 },
-    { text: 'Assinale a alternativa correta.', y: 640, page: 1 },
+    { text: 'Nesse contexto, assinale a alternativa correta.', y: 640, page: 1 },
     { text: 'A) item A', y: 620, page: 1 },
   ];
 
-  const parsed = parseOptionsAndStatement(lines);
+  const parsed = parseQuestionContent(lines);
   const reference = splitReferenceFromParts(parsed.referenceLines);
+  assert.match(reference, /TEXTO I/);
   assert.match(reference, /Era uma vez um texto longo/i);
-  assert.match(parsed.statement, /Assinale/);
+  assert.equal(parsed.statement, 'Nesse contexto, assinale a alternativa correta.');
 });
 
-test('metadados são extraídos de linhas dedicadas', () => {
+test('metadados são extraídos de linhas dedicadas sem concatenar blocos indevidos', () => {
   const metadata = extractMetadataFromLines([
     '2026',
     'Prefeitura Municipal de São José do Divino (PI)',
@@ -67,8 +69,8 @@ test('metadados são extraídos de linhas dedicadas', () => {
 
   assert.equal(metadata.year, 2026);
   assert.equal(metadata.exam_board, 'FUNATEC');
-  assert.match(metadata.institution, /São José do Divino/);
-  assert.match(metadata.position, /Professor/);
+  assert.equal(metadata.institution, 'Prefeitura Municipal de São José do Divino (PI)');
+  assert.equal(metadata.position, 'Professor - Ensino Fundamental Anos Finais - Ciências');
   assert.equal(metadata.discipline, 'Ciências');
 });
 

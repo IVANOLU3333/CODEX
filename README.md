@@ -37,7 +37,9 @@ Com base no layout dos exemplos fornecidos:
 - Existem questões com texto-base longo em página seguinte e enunciado final com comando `Assinale...`.
 - Há questões com figura dentro do bloco da questão.
 
-- O parser agora tenta separar metadados editoriais do enunciado real, preservando o comando da questão em `statement`.
+- O parser agora separa a questão em zonas estruturais: metadados iniciais, corpo completo do enunciado antes das alternativas, prompt final da pergunta e alternativas.
+- Todo o corpo textual antes das alternativas passa a ser preservado em `references.json`, enquanto `statement` prioriza o comando final/pergunta objetiva da questão.
 - O parser também tenta extrair gabaritos explícitos nas páginas finais do PDF e preencher `answer` quando encontrar correspondência por número da questão.
+- Imagens detectadas dentro do bloco visual da questão são extraídas para `images/questions/` e vinculadas por `question_media_links.json`.
 
 O parser foi implementado para seguir esse padrão antes de gerar os JSONs no formato exigido.
