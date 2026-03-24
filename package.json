@@ -1,0 +1,15 @@
+{
+  "name": "concurso-pdf-extractor",
+  "version": "1.0.0",
+  "description": "Extrator de questões de concursos em PDF para JSON compatível com importador do site",
+  "main": "src/cli.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/cli.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "pdfjs-dist": "3.11.174",
+    "pngjs": "7.0.0"
+  }
+}
